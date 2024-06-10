@@ -13,3 +13,9 @@ The [DS1244 datasheet](DS1244_datasheet.pdf) covers pinout, operation, the seria
 ### Building
 
 You will need [our port of the A85 assembler](https://github.com/glitchwrks/a85) and `make`. The included `Makefile` will build the project.
+
+### `READ1244`
+
+`READ1244` will read the RTC registers from a Dallas Phantom RTC and print them to the console. It expects to run with GWMON-80 or CP/M, and has been tested on the 8085 SBC rev 3 and rev 4M.
+
+After building, `READ1244.HEX` can be loaded directly with GWMON-80 using the `L` Intel HEX loader command. Once it is loaded, jump into it with `G 0100`. `READ1244.HEX` is also CP/M compatible, and can be turned into a CP/M executable with `LOAD READ1244`.

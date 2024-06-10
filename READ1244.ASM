@@ -1,5 +1,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;1244DEMO -- DS1244 Phantom RTC Demo Program
+;READ1244 -- Read and Display DS1244 Phantom RTC Registers
+;
+;This program will read from a Dallas Phantom RTC and
+;display the value of the RTC registers on the console. It
+;can be loaded directly into GWMON-80, or used with the CP/M
+;relocator.
 ;
 ;Copyright (c) 2024 Glitch Works, LLC
 ;http://www.glitchwrks.com
@@ -24,19 +29,26 @@ MONIN	equ	GWMON+9H	;Monitor character in routine
 ;CP/M Equates
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Program Equates
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+PRVSTK	equ	5FFFH		;Private stack location, A14 high
+
 	ORG	4000H		;A14 must be high since *RST may not be
 				;disabled yet.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;SAVSTK -- Save the current stack and set up a private one
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+SAVSTK:	LXI	H, 0		;Zero HL
+	DAD	SP		;HL = old stack pointer
+	SHLD	OLDSTK		;Save for later
+	LXI	SP, PRVSTK	;Set up private stack
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;START -- Get ready to interact with Phantom RTC
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-START:	LXI	SP, 5000H	;Private stack, A14 high
-	
-;	CALL	UNLOCK		;Send the unlock sequence	
-;	LXI	H, INIRTC	;Set the RTC to defaults
-;	CALL	RTCWR
-
-	LXI	H, CRLF$	;Newline before printout
+START:	LXI	H, CRLF$	;Newline before printout
 	CALL	PRTSTR
 
 	CALL	UNLOCK		;Send the unlock sequence
@@ -45,8 +57,15 @@ START:	LXI	SP, 5000H	;Private stack, A14 high
 
 	CALL	PRTBUF		;Print the RTC registers to console
 
-	JMP	GWMON		;Back to GWMON, cold start to restore
-				;stack
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;QUIT -- Exit to calling program
+;
+;Restore the stack this program was entered with, and exit
+;via RET. This works correctly with both CP/M and GWMON-80.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+QUIT:	LHLD	OLDSTK		;HL = saved stack pointer
+	SPHL			;Restore old stack
+	RET			;Return to caller
 
 	INCLUDE	'1244COMM.INC'	;Phantom RTC communications library
 	INCLUDE	'1244DISP.INC'	;Phantom RTC register display library
@@ -57,21 +76,9 @@ START:	LXI	SP, 5000H	;Private stack, A14 high
 COUT:	JMP MONOUT
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;INIRTC -- Set the Phantom RTC to defaults
-;
-;This data block will set the Phantom RTC to 00:00:00.00 on
-;1970-01-01. It sets 24-hour mode, enables the RTC 
-;oscillator, and disables the *RST input, which is shared 
-;with address line A14.
+;Variable Storage Area
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-INIRTC:	db 00H			;0 centiseconds
-	db 00H			;0 seconds
-	db 00H			;0 minutes
-	db 00H			;Midnight, 24-hour mode
-	db 14H			;Oscillator on, reset disabled, Thursday
-	db 01H			;First day of the month
-	db 01H			;January
-	db 70H			;1970 (no century)
+OLDSTK:	ds 2			;Two bytes for stack pointer storage
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;RTCBUF -- Buffer space for phantom RTC operations
