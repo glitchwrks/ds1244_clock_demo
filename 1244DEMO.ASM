@@ -12,7 +12,9 @@
 ;Phantom RTC Equates
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 MODEMSK	equ	10000000B	;12/24 hour mode bit mask
-HRMSK	equ	00111111B	;Hour bits mask
+AMPMMSK	equ	00100000B	;AM/PM bit mask
+HRMSK12	equ	00011111B	;Hour bits mask
+HRMSK24	equ	00111111B	;Hour bits mask
 OSCMSK	equ	00100000B	;Oscillator control bit mask
 RSTMSK	equ	00010000B	;*RST control bit mask
 DAYMSK	equ	00000111B	;Day-of-week bits mask
@@ -48,6 +50,9 @@ START:	LXI	SP, 5000H	;Private stack, A14 high
 ;	CALL	UNLOCK		;Send the unlock sequence	
 ;	LXI	H, INIRTC	;Set the RTC to defaults
 ;	CALL	RTCWR
+
+	LXI	H, CRLF$	;Newline before printout
+	CALL	PRTSTR
 
 	CALL	UNLOCK		;Send the unlock sequence
 	LXI	H, RTCBUF	;Read the RTC registers into a buffer
@@ -90,7 +95,7 @@ UNLOCK:	CALL	CLEAR		;Clear the RTC pattern pointer
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;RTCWR -- Write buffer out to Phantom RTC
 ;
-;This routine shifts out 8 bytes at [HL] to the phantom RTC.
+;This routine shifts out 8 bytes at HL to the phantom RTC.
 ;
 ;Destroys contents of registers A, B, C.
 ;
@@ -143,13 +148,35 @@ RTCRD2:	LDA	SCRATCH		;Get bit to shift in
 ;pre: RTCBUF contains valid RTC data
 ;post: phantom RTC information printed to console
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-PRTBUF:	LXI	H, TIME$	;Print time string
+PRTBUF:	CALL	PRTTIM		;Print the time
+	CALL	PRTDAT		;Print the date
+	CALL	PRTMOD		;Print 12/24 hour mode status
+	CALL	PRTOSC		;Print oscillator status
+	CALL	PRTRST		;Print *RST operation status
+	RET
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;PRTTIM -- Print time to console
+;
+;This routine correctly handles 12/24 hour mode, and prints
+;AM/PM when in 12-hour mode.
+;
+;pre: RTCBUF contains valid RTC information
+;post: date printed to console
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+PRTTIM:	LXI	H, TIME$	;Print time string
 	CALL	PRTSTR
+
 	LDA	RTCBUF+3	;A = hour register
-	ANI	HRMSK		;Mask off hour bits
-	CALL	PRTBCD		;Print BCD hours
+	ORA	A		;Set flags
+	JM	PRT12		;12-hour mode
+	ANI	HRMSK24		;Mask off 24-hour bits
+	JMP	PRT24		;Print hours
+PRT12:	ANI	HRMSK12		;Mask off 12-hour bits
+PRT24:	CALL	PRTBCD		;Print BCD hours
 	MVI	A, ':'		;Print colon separator
 	CALL	MONOUT
+
 	LDA	RTCBUF+2	;A = minutes register
 	CALL	PRTBCD		;Print BCD minutes
 	MVI	A, ':'		;Print colon separator
@@ -157,12 +184,40 @@ PRTBUF:	LXI	H, TIME$	;Print time string
 	LDA	RTCBUF+1	;A = seconds register
 	CALL	PRTBCD		;Print BCD seconds
 	MVI	A, '.'		;Print centiseconds separator
+	CALL	MONOUT
 	LDA	RTCBUF		;A = centiseconds register
 	CALL	PRTBCD		;Print BCD centiseconds
-	LXI	H, CRLF$	;Print newline
-	CALL	PRTSTR
 
-	LXI	H, DATE$	;Print date string
+	LDA	RTCBUF+3	;A = hour register
+	ORA	A		;Set flags
+	JP	IS24		;24-hour mode, done
+	MVI	A, ' '		;12-hour mode, print AM/PM separator
+	CALL	MONOUT
+	LDA	RTCBUF+3	;A = hour register
+	ANI	AMPMMSK		;Mask off AM/PM indicator
+	JZ	ISAM		;0, AM
+	LXI	H, PM$		;1, PM
+	JMP	ISPM
+ISAM:	LXI	H, AM$
+ISPM:	CALL	PRTSTR
+
+IS24:	LXI	H, CRLF$	;Print newline
+	JMP	PRTSTR		;Return through PRTSTR
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;PRTDAT -- Print date to console
+;
+;The Phantom RTC supports two digit years only. Year values
+;greater than 69 are assumed to be 20th century (e.g. 1970
+;to 1999), year values less than 70 are assumed to be 21st
+;century (2000 to 2069). This strategy allows the start of
+;the UNIX epoch (1970-01-01) to be a valid date for the
+;Phantom RTC.
+;
+;pre: RTCBUF contains valid RTC information
+;post: date printed to console
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+PRTDAT:	LXI	H, DATE$	;Print date string
 	CALL	PRTSTR
 	LDA	RTCBUF+4	;A = options/day register
 	ANI	DAYMSK		;Mask of day-of-week bits
@@ -181,6 +236,14 @@ PRTBUF:	LXI	H, TIME$	;Print time string
 	CALL	PRTSTR
 
 	LDA	RTCBUF+7	;A = year register
+	CPI	06FH		;70 or greater?
+	JNC	IS20		;Yes, 20th century date
+	MVI	A, 020H		;No, 21st century date
+	JMP	IS21
+IS20:	MVI	A, 019H		;Print 20th century
+IS21:	CALL	PRTBCD
+
+	LDA	RTCBUF+7	;A = year register
 	CALL	PRTBCD		;Print BCD year
 	MVI	A, '-'		;Print dash separator
 	CALL	MONOUT
@@ -191,12 +254,7 @@ PRTBUF:	LXI	H, TIME$	;Print time string
 	LDA	RTCBUF+5	;A = date register
 	CALL	PRTBCD
 	LXI	H, CRLF$	;Print newline
-	CALL	PRTSTR
-
-	CALL	PRTMOD
-	CALL	PRTOSC
-	CALL	PRTRST
-	RET
+	JMP	PRTSTR		;Return through PRTSTR
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;PRTMOD -- Print 12/24 hour mode operation
@@ -314,6 +372,8 @@ INIRTC:	db 00H			;0 centiseconds
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;DAYTAB -- Days of the week string table
 ;
+;Day-of-week mapping is in accordance with POSIX standards.
+;
 ;While this table necessarily begins at 0, that is not a
 ;valid day for this RTC, nor in the POSIX standard.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -340,12 +400,14 @@ DATE$:	db 'Date:              ', 0
 MODE$:	db '12/24 hour mode:   ', 0
 HR12$:	db '12 HOUR', CR, LF, 0
 HR24$:	db '24 HOUR', CR, LF, 0
+AM$:	db 'AM', 0
+PM$:	db 'PM', 0
 OSC$:	db 'Oscillator is:     ', 0
 RUN$:	db 'RUNNING', CR, LF, 0
 STOP$:	db 'STOPPED', CR, LF, 0
 PIN1$:	db 'Pin 1 function is: A14', 0
 ONLY$: 	db ' ONLY', CR, LF, 0
-RESET$:	db ' AND *RESET'
+RESET$:	db ' AND *RESET'	;Terminated by CRLF$
 CRLF$:	db CR, LF, 0
 CMSPC$:	db ', ', 0
 
