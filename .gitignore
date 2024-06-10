@@ -1,5 +1,7 @@
 # Ignore assembler output
+*bin
 *hex
 *prn
+*BIN
 *HEX
 *PRN
