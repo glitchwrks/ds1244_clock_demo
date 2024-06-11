@@ -108,8 +108,8 @@ CHKCP1:	LDAX	D		;A = opcode at JMP destination
 	DCR	B		;Decrement JMP counter
 	JNZ	CHKCP1		;More JMPs to check for
 
-	CMA			;A = 0xFF (must've been 0 to get here)
-	STA	CPMFLG		;Set CP/M flag to TRUE
+	MVI	A, 0FFH		;Set CP/M flag to TRUE
+	STA	CPMFLG
 	RET
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -122,15 +122,17 @@ CHKCP1:	LDAX	D		;A = opcode at JMP destination
 ;pre: A register contains character to output
 ;post: character in A register output to console
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-COUT:	PUSH	B		;Save B on stack
-	MOV	B, A		;Save character in B
+COUT:	PUSH	PSW		;Save character on stack
 	LDA	CPMFLG		;Running under CP/M?
 	ORA	A		;Set flags
-	MOV	A, B		;Restore A
-	POP	B		;Restore B
-	JNZ	MONOUT		;No, return through GWMON-80 COUT
-COUT1:	PUSH	B		;Yes, use BDOS character output
-	PUSH	D		;Save registers on stack
+	JNZ	COUT1		;Yes, use BDOS character output
+	
+	POP	PSW		;No use GWMON-80 COUT
+	JNZ	MONOUT		;Return through COUT
+
+COUT1:	POP	PSW		;Restore A
+	PUSH	B		;Save registers on stack
+	PUSH	D
 	PUSH	H
 	MVI	C, CWRITE	;C = BDOS function
 	MOV	E, A		;E = character to output
