@@ -28,6 +28,9 @@ MONIN	equ	GWMON+9H	;Monitor character in routine
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;CP/M Equates
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+WBOOT	equ	0000H		;CP/M warm boot address
+BDOS	equ	0005H		;CP/M BDOS entry point
+CWRITE	equ	02H		;BDOS console output
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Program Equates
@@ -48,7 +51,9 @@ SAVSTK:	LXI	H, 0		;Zero HL
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;START -- Get ready to interact with Phantom RTC
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-START:	LXI	H, CRLF$	;Newline before printout
+START:	CALL	CHKCPM		;Check if we're running under CP/M
+	
+	LXI	H, CRLF$	;Newline before printout
 	CALL	PRTSTR
 
 	CALL	UNLOCK		;Send the unlock sequence
@@ -71,14 +76,75 @@ QUIT:	LHLD	OLDSTK		;HL = saved stack pointer
 	INCLUDE	'1244DISP.INC'	;Phantom RTC register display library
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;COUT -- Character output routine
+;CHKCPM -- Check for CP/M in memory
+;
+;Determine if we're currently running under CP/M. Set CPMFLG
+;depending on the result.
+;
+;CP/M is assumed if there is a JMP at 0x0000 and the
+;destination address points to five more JMPs.
+;
+;post: CPMFLG is nonzero if running under CP/M
+;post: CPMFLG is zero if not running under CP/M
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-COUT:	JMP MONOUT
+CHKCPM:	XRA	A
+	STA	CPMFLG		;Clear CP/M flag to FALSE
+
+	LDA	WBOOT		;Get byte at CP/M warm start address
+	CPI	0C3H		;Check for JMP instruction
+	RNZ			;No, definitely not CP/M
+
+	LXI	H, WBOOT+1	;HL = LSB of JMP operand
+	MOV	E, M		;E = low byte of JMP destination
+	INX	H		;HL = MSB of JMP operand
+	MOV	D, M		;D = high byte of JMP destination
+	MVI	B, 5		;Look for 5 more JMPs -- CP/M JMP table
+CHKCP1:	LDAX	D		;A = opcode at JMP destination
+	CPI	0C3H		;JMP present?
+	RNZ			;No, not CP/M
+	INX	D		;Move to next JMP
+	INX	D
+	INX	D
+	DCR	B		;Decrement JMP counter
+	JNZ	CHKCP1		;More JMPs to check for
+
+	CMA			;A = 0xFF (must've been 0 to get here)
+	STA	CPMFLG		;Set CP/M flag to TRUE
+	RET
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;COUT -- Character output routine
+;
+;This routine uses CP/M's console I/O routines via BDOS call
+;if CPMFLG indicates CP/M is in memory, or GWMON-80 COUT if
+;CP/M is not running.
+;
+;pre: A register contains character to output
+;post: character in A register output to console
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+COUT:	PUSH	B		;Save B on stack
+	MOV	B, A		;Save character in B
+	LDA	CPMFLG		;Running under CP/M?
+	ORA	A		;Set flags
+	MOV	A, B		;Restore A
+	POP	B		;Restore B
+	JNZ	MONOUT		;No, return through GWMON-80 COUT
+COUT1:	PUSH	B		;Yes, use BDOS character output
+	PUSH	D		;Save registers on stack
+	PUSH	H
+	MVI	C, CWRITE	;C = BDOS function
+	MOV	E, A		;E = character to output
+	CALL	BDOS		;Make BDOS call
+	POP	H		;Restore registers from stack
+	POP	D
+	POP	B
+	RET
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Variable Storage Area
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 OLDSTK:	ds 2			;Two bytes for stack pointer storage
+CPMFLG:	ds 1			;CP/M flag, nonzero if CP/M detected
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;RTCBUF -- Buffer space for phantom RTC operations
