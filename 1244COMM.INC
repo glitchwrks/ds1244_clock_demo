@@ -6,16 +6,14 @@
 ;reading, and writing to the Phantom RTC.
 ;
 ;Programs INCLUDEing this library must set the SCRATCH
-;equate and define RTCBUF, an 8 byte buffer for RTC register
-;working data.
-;
-;SCRATCH should be an address in the Phantom RTC memory area
-;that keeps A14 set high, in case *RST is not yet disabled.
+;equate. SCRATCH should be an address in the Phantom RTC 
+;memory area that keeps A14 set high, in case *RST is not
+;yet disabled.
 ;
 ;RTCBUF can be located anywhere outside Phantom RTC memory.
-;It is often convenient to reserve 8 bytes at the end of
-;INCLUDEing programs, but RTCBUF can be set to a static
-;address to make debugging easier.
+;By default, it is reserved at the end of this file, but 
+;RTCBUF can be set to a static address to make debugging 
+;easier.
 ;
 ;Copyright (c) 2024 Glitch Works, LLC
 ;http://www.glitchwrks.com
@@ -114,3 +112,19 @@ RTCRD2:	LDA	SCRATCH		;Get bit to shift in
 ;memory region, LSB to MSB.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 PATTRN:	db 0C5H, 03AH, 0A3H, 05CH, 0C5H, 03AH, 0A3H, 05CH
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;RTCBUF -- Buffer space for phantom RTC operations
+;
+;This buffer is used to store data for serialization and
+;deserialization when reading and writing to the phantom RTC
+;registers. All eight 8-bit registers must be read or
+;written.
+;
+;RTCBUF must be located outside the memory area associated
+;with the phantom RTC, and should reside in an address range
+;that keeps A14 set high, so that phantom RTCs that have
+;*RST enabled on pin 1 are not reset during accesses.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+RTCBUF:	ds 8			;Dynamic buffer allocation after program
+;RTCBUF	equ	6000H		;Example static allocation for debug

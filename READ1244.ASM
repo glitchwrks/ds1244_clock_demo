@@ -148,14 +148,4 @@ COUT1:	POP	PSW		;Restore A
 OLDSTK:	ds 2			;Two bytes for stack pointer storage
 CPMFLG:	ds 1			;CP/M flag, nonzero if CP/M detected
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;RTCBUF -- Buffer space for phantom RTC operations
-;
-;This buffer is used to store data for serialization and
-;deserialization when reading and writing to the phantom RTC
-;registers. All eight 8-bit registers must be read or
-;written.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-RTCBUF:	ds 8			;Dynamic buffer allocation after program
-
 	END
