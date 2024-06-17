@@ -124,7 +124,10 @@ PATTRN:	db 0C5H, 03AH, 0A3H, 05CH, 0C5H, 03AH, 0A3H, 05CH
 ;RTCBUF must be located outside the memory area associated
 ;with the phantom RTC, and should reside in an address range
 ;that keeps A14 set high, so that phantom RTCs that have
-;*RST enabled on pin 1 are not reset during accesses.
+;*RST enabled on pin 1 are not reset during accesses. 
+;
+;RTCBUF can be defined before 1244COMM is included.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	IFNDEF	RTCBUF
 RTCBUF:	ds 8			;Dynamic buffer allocation after program
-;RTCBUF	equ	6000H		;Example static allocation for debug
+	ENDIF
