@@ -83,10 +83,12 @@ COUT:				;This line blank, no label on IFDEF
 	ORA	A		;Set flags
 	JNZ	CPMOUT		;Yes, use BDOS character output
 	POP	PSW		;No use GWMON-80 COUT
-	ENDIF
 
 	JNZ	MONOUT		;Return through MONOUT
-
+	ELSE
+	JMP	MONOUT		;Return through MONOUT
+	ENDIF
+	
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;CPMOUT -- CP/M BDOS console output
 ;
