@@ -95,7 +95,8 @@ INIRTC:	db 00H			;0 centiseconds
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;String Constants
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-SIGN$:	db CR, LF, 'DS1244 Setup', CR, LF
+SIGN$:	db CR, LF, 'DS1244 Setup', CR, LF, LF
+	db 'Load defaults? (Y/N): ', 0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Variable Storage Area
